@@ -70,7 +70,7 @@ const autoMigrate = async (pool) => {
     `);
     const existingTransactionColumns = transactionsColumns.rows.map(row => row.column_name.toLowerCase());
     
-    const desiredTransactionColumns = ['id', 'sender_id', 'receiver_id', 'amount', 'transaction_type', 'status', 'created_at'];
+    const desiredTransactionColumns = ['id', 'sender_id', 'receiver_id', 'amount', 'transaction_type', 'status', 'created_at', 'sslcommerz_transaction_id', 'bank_transaction_id'];
     
     for (const column of desiredTransactionColumns) {
       if (!existingTransactionColumns.includes(column)) {
@@ -87,6 +87,10 @@ const autoMigrate = async (pool) => {
           await pool.query('ALTER TABLE transactions ADD COLUMN sender_id INTEGER REFERENCES users(id)');
         } else if (column === 'receiver_id') {
           await pool.query('ALTER TABLE transactions ADD COLUMN receiver_id INTEGER REFERENCES users(id)');
+        } else if (column === 'sslcommerz_transaction_id') {
+          await pool.query('ALTER TABLE transactions ADD COLUMN sslcommerz_transaction_id VARCHAR(100)');
+        } else if (column === 'bank_transaction_id') {
+          await pool.query('ALTER TABLE transactions ADD COLUMN bank_transaction_id VARCHAR(100)');
         }
       }
     }

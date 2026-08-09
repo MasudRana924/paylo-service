@@ -1,3 +1,4 @@
+require('dotenv').config();
 const http = require("http");
 const { routes, baseUrl } = require("./src/routes");
 const { connectDB } = require("./src/config/db");

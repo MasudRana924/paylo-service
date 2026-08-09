@@ -1,6 +1,6 @@
 const { handleSignup, handleVerifyOTP, handleLogin, handleResendOTP, saveFcmToken, updateProfileImage } = require("../controllers/authController");
 const { handleCheckReceiver, handleSendMoney, handleMerchantCheck, handleCheckAgent, handlePaymentLink, handleCashout, transactionHistory } = require("../controllers/transactionController");
-const { getBalance, freezeWallet, unfreezeWallet, blockWallet, unblockWallet } = require("../controllers/walletController");
+const { getBalance, freezeWallet, unfreezeWallet, blockWallet, unblockWallet, addMoney, handleSSLCOMMERZSuccess, handleSSLCOMMERZFail, handleSSLCOMMERZCancel, handleSSLCOMMERZIPN, manualProcessTransaction, manualTriggerSuccess } = require("../controllers/walletController");
 const { createNotification, getNotifications, getPublicNotifications, createAdmin, disableAdmin, listAdmins, toggleAdminWalletPermission } = require("../controllers/adminController");
 const { authenticateToken } = require("../middleware/auth");
 const { handleFileUpload } = require("../middleware/fileUpload");
@@ -120,6 +120,44 @@ const routes = [
     method: "POST",
     middleware: [authenticateToken, requireWalletStatusPermission],
     handler: unblockWallet,
+  },
+  {
+    url: "/wallet/add-money",
+    method: "POST",
+    middleware: authenticateToken,
+    handler: addMoney,
+  },
+  {
+    url: "/wallet/sslcommerz/success",
+    method: "POST",
+    handler: handleSSLCOMMERZSuccess,
+  },
+  {
+    url: "/wallet/sslcommerz/fail",
+    method: "POST",
+    handler: handleSSLCOMMERZFail,
+  },
+  {
+    url: "/wallet/sslcommerz/cancel",
+    method: "POST",
+    handler: handleSSLCOMMERZCancel,
+  },
+  {
+    url: "/wallet/sslcommerz/ipn",
+    method: "POST",
+    handler: handleSSLCOMMERZIPN,
+  },
+  {
+    url: "/wallet/process-transaction",
+    method: "POST",
+    middleware: authenticateToken,
+    handler: manualProcessTransaction,
+  },
+  {
+    url: "/wallet/manual-success",
+    method: "POST",
+    middleware: authenticateToken,
+    handler: manualTriggerSuccess,
   },
   {
     url: "/admin/notification/create",
