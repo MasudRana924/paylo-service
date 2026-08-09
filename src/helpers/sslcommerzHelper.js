@@ -20,9 +20,9 @@ const createPaymentSession = async (transactionId, amount, userId, userEmail, us
     currency: 'BDT',
     tran_id: transactionId,
     // Callback URLs disabled for learning project
-    success_url: `${BACKEND_URL}/api/v1/wallet/sslcommerz/success`,
-    fail_url: `${BACKEND_URL}/api/v1/wallet/sslcommerz/fail`,
-    cancel_url: `${BACKEND_URL}/api/v1/wallet/sslcommerz/cancel`,
+    success_url: `${BACKEND_URL}/tapcash://payment-success`,
+    fail_url: 'tapcash://payment-success',
+    cancel_url: 'tapcash://payment-success',
     ipn_url: `${BACKEND_URL}/api/v1/wallet/sslcommerz/ipn`,
     product_name: 'Wallet Add Money',
     product_category: 'Wallet',
