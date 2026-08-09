@@ -1,29 +1,24 @@
 const https = require('https');
 
-const SSLCOMMERZ_STORE_ID = process.env.SSLCOMMERZ_STORE_ID;
-const SSLCOMMERZ_STORE_PASSWORD = process.env.SSLCOMMERZ_STORE_PASSWORD;
-const SSLCOMMERZ_IS_SANDBOX = process.env.SSLCOMMERZ_IS_SANDBOX === 'true';
-const BACKEND_URL = process.env.BACKEND_URL;
-
-const SSLCOMMERZ_API_URL = SSLCOMMERZ_IS_SANDBOX
-  ? 'https://sandbox.sslcommerz.com'
-  : 'https://securepay.sslcommerz.com';
-
 /**
- * Create SSLCOMMERZ payment session
+ * Create SSLCOMMERZ payment session dynamically fetching env variables
  */
 const createPaymentSession = async (transactionId, amount, userId, userEmail, userName, userPhone) => {
+  const storeId = process.env.SSLCOMMERZ_STORE_ID || 'mkmhe6464fe176e5aa';
+  const storePasswd = process.env.SSLCOMMERZ_STORE_PASSWORD || 'mkmhe6464fe176e5aa@ssl';
+  const isSandbox = process.env.SSLCOMMERZ_IS_SANDBOX === 'true' || process.env.SSLCOMMERZ_IS_SANDBOX === true || true;
+  const backendUrl = (process.env.BACKEND_URL || 'http://172.31.224.1:8080').replace(/\/$/, '');
+
   const postData = new URLSearchParams({
-    store_id: SSLCOMMERZ_STORE_ID,
-    store_passwd: SSLCOMMERZ_STORE_PASSWORD,
+    store_id: storeId,
+    store_passwd: storePasswd,
     total_amount: amount,
     currency: 'BDT',
     tran_id: transactionId,
-    // Callback URLs disabled for learning project
-    success_url: `${BACKEND_URL}/tapcash://payment-success`,
-    fail_url: 'tapcash://payment-success',
-    cancel_url: 'tapcash://payment-success',
-    ipn_url: `${BACKEND_URL}/api/v1/wallet/sslcommerz/ipn`,
+    success_url: `${backendUrl}/api/v1/wallet/sslcommerz/success`,
+    fail_url: `${backendUrl}/api/v1/wallet/sslcommerz/fail`,
+    cancel_url: `${backendUrl}/api/v1/wallet/sslcommerz/cancel`,
+    ipn_url: `${backendUrl}/api/v1/wallet/sslcommerz/ipn`,
     product_name: 'Wallet Add Money',
     product_category: 'Wallet',
     product_profile: 'general',
@@ -36,12 +31,12 @@ const createPaymentSession = async (transactionId, amount, userId, userEmail, us
     shipping_method: 'NO',
     multi_card_name: 'visa,mastercard',
     card_type: 'visa,mastercard',
-    value_a: userId.toString(),
+    value_a: userId ? userId.toString() : '',
     value_b: 'ADD_MONEY',
   }).toString();
 
   const options = {
-    hostname: SSLCOMMERZ_IS_SANDBOX ? 'sandbox.sslcommerz.com' : 'securepay.sslcommerz.com',
+    hostname: isSandbox ? 'sandbox.sslcommerz.com' : 'securepay.sslcommerz.com',
     port: 443,
     path: '/gwprocess/v4/api.php',
     method: 'POST',
@@ -86,29 +81,22 @@ const createPaymentSession = async (transactionId, amount, userId, userEmail, us
 };
 
 /**
- * Validate SSLCOMMERZ transaction
+ * Validate SSLCOMMERZ transaction dynamically fetching env variables
+ * Uses official SSLCOMMERZ validationserverAPI.php endpoint
  */
-const validateTransaction = async (transactionId) => {
-  const postData = new URLSearchParams({
-    store_id: SSLCOMMERZ_STORE_ID,
-    store_passwd: SSLCOMMERZ_STORE_PASSWORD,
-    tran_id: transactionId,
-  }).toString();
+const validateTransaction = async (valId, tranId) => {
+  const storeId = process.env.SSLCOMMERZ_STORE_ID || 'mkmhe6464fe176e5aa';
+  const storePasswd = process.env.SSLCOMMERZ_STORE_PASSWORD || 'mkmhe6464fe176e5aa@ssl';
+  const isSandbox = process.env.SSLCOMMERZ_IS_SANDBOX === 'true' || process.env.SSLCOMMERZ_IS_SANDBOX === true || true;
 
-  const options = {
-    hostname: SSLCOMMERZ_IS_SANDBOX ? 'sandbox.sslcommerz.com' : 'securepay.sslcommerz.com',
-    port: 443,
-    path: '/validator/api/transactionvalidationAPIv2.php',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': Buffer.byteLength(postData),
-      'Accept': 'application/json',
-    },
-  };
+  const hostname = isSandbox ? 'sandbox.sslcommerz.com' : 'securepay.sslcommerz.com';
+  const queryParam = valId ? `val_id=${encodeURIComponent(valId)}` : `tran_id=${encodeURIComponent(tranId || '')}`;
+  const path = `/validator/api/validationserverAPI.php?${queryParam}&store_id=${encodeURIComponent(storeId)}&store_passwd=${encodeURIComponent(storePasswd)}&v=1&format=json`;
+
+  const url = `https://${hostname}${path}`;
 
   return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
+    https.get(url, (res) => {
       let data = '';
       res.on('data', (chunk) => {
         data += chunk;
@@ -119,17 +107,12 @@ const validateTransaction = async (transactionId) => {
           const response = JSON.parse(data);
           resolve(response);
         } catch (error) {
-          reject(new Error('Failed to parse SSLCOMMERZ validation response'));
+          reject(new Error(`Failed to parse SSLCOMMERZ validation response: ${data}`));
         }
       });
-    });
-
-    req.on('error', (error) => {
+    }).on('error', (error) => {
       reject(error);
     });
-
-    req.write(postData);
-    req.end();
   });
 };
 
