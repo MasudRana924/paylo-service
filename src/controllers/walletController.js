@@ -1,14 +1,33 @@
 const { pool } = require("../config/db");
 const { createPaymentSession, validateTransaction } = require("../helpers/sslcommerzHelper");
+const { redis } = require("../config/redis");
 
 const getBalance = async (req, res) => {
   let body = "";
   req.on("data", (chunk) => (body += chunk));
   req.on("end", async () => {
     try {
+      const userId = req.user.userId;
+      const cacheKey = `wallet:${userId}`;
+
+      // Try to get from Redis cache first
+      const cachedWallet = await redis.get(cacheKey);
+      if (cachedWallet) {
+        console.log('Wallet data from Redis cache');
+        res.end(
+          JSON.stringify({
+            successMessage: "Balance retrieved successfully (from cache)",
+            balance: JSON.parse(cachedWallet).balance,
+            status: JSON.parse(cachedWallet).status,
+          }),
+        );
+        return;
+      }
+
+      // If not in cache, get from database
       const wallet = await pool.query(
         "SELECT * FROM wallets WHERE user_id = $1",
-        [req.user.userId],
+        [userId],
       );
 
       if (wallet.rows.length === 0) {
@@ -16,14 +35,22 @@ const getBalance = async (req, res) => {
         return;
       }
 
+      const walletData = wallet.rows[0];
+
+      // Cache in Redis with random TTL (5 minutes + random 0-15 seconds)
+      const randomTTL = 300 + Math.floor(Math.random() * 15);
+      await redis.setEx(cacheKey, randomTTL, JSON.stringify(walletData));
+      console.log(`Wallet data cached in Redis with TTL: ${randomTTL}s`);
+
       res.end(
         JSON.stringify({
           successMessage: "Balance retrieved successfully",
-          balance: wallet.rows[0].balance,
-          status: wallet.rows[0].status,
+          balance: walletData.balance,
+          status: walletData.status,
         }),
       );
     } catch (error) {
+      console.error("Get balance error:", error);
       res.end(JSON.stringify({ errorMessage: "Error retrieving balance" }));
     }
   });
@@ -199,6 +226,10 @@ const addMoney = async (req, res) => {
           "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2",
           [amount, userId]
         );
+
+        // Invalidate cache
+        await redis.del(`wallet:${userId}`);
+        console.log('Wallet cache invalidated for user:', userId);
 
         // Create PENDING transaction
         const transactionResult = await pool.query(

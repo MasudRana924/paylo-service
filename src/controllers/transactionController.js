@@ -3,6 +3,7 @@ const {
   sendMoneyReceivedNotification,
   sendMoneySentNotification,
 } = require("../helpers/notificationHelper");
+const { redis } = require("../config/redis");
 
 const checkUserType = (req, res, userType, responseKey) => {
   let body = "";
@@ -151,6 +152,11 @@ const executeTransaction = async (req, res, receiverType, transactionType) => {
           "completed",
         ]
       );
+
+      // Invalidate cache for both sender and receiver
+      await redis.del(`wallet:${sender.rows[0].id}`);
+      await redis.del(`wallet:${receiver.rows[0].id}`);
+      console.log('Wallet cache invalidated for sender and receiver');
 
       await pool.query("COMMIT");
 
