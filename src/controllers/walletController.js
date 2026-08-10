@@ -2,37 +2,16 @@ const { pool } = require("../config/db");
 const { findByUserId, saveWallet, updateBalance, freeze, unfreeze, block, unblock } = require("../models/walletModel");
 const { saveTransaction, findById, findBySslcommerzId, updateStatus, updateBankTransactionId, updateSslcommerzDetails, findPendingByUserIdAndId } = require("../models/transactionModel");
 const { createPaymentSession, validateTransaction } = require("../helpers/sslcommerzHelper");
-const { redis } = require("../config/redis");
 
 const getBalance = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const cacheKey = `wallet:${userId}`;
-
-    // Try to get from Redis cache first
-    const cachedWallet = await redis.get(cacheKey);
-    if (cachedWallet) {
-      console.log('Wallet data from Redis cache');
-      res.status(200).json({
-        successMessage: "Balance retrieved successfully (from cache)",
-        balance: JSON.parse(cachedWallet).balance,
-        status: JSON.parse(cachedWallet).status,
-      });
-      return;
-    }
-
-    // If not in cache, get from database
     const wallet = await findByUserId(userId);
 
     if (!wallet) {
       res.status(404).json({ errorMessage: "Wallet not found" });
       return;
     }
-
-    // Cache in Redis with random TTL (5 minutes + random 0-15 seconds)
-    const randomTTL = 300 + Math.floor(Math.random() * 15);
-    await redis.setEx(cacheKey, randomTTL, JSON.stringify(wallet));
-    console.log(`Wallet data cached in Redis with TTL: ${randomTTL}s`);
 
     res.status(200).json({
       successMessage: "Balance retrieved successfully",
@@ -54,9 +33,6 @@ const freezeWallet = async (req, res) => {
       return;
     }
 
-    await redis.del(`wallet:${req.user.userId}`);
-    console.log('Wallet cache invalidated for user:', req.user.userId);
-
     res.status(200).json({
       successMessage: "Wallet frozen successfully",
       wallet: wallet,
@@ -75,9 +51,6 @@ const unfreezeWallet = async (req, res) => {
       res.status(404).json({ errorMessage: "Wallet not found" });
       return;
     }
-
-    await redis.del(`wallet:${data.userId}`);
-    console.log('Wallet cache invalidated for user:', data.userId);
 
     res.status(200).json({
       successMessage: "Wallet unfrozen successfully",
@@ -98,9 +71,6 @@ const blockWallet = async (req, res) => {
       return;
     }
 
-    await redis.del(`wallet:${data.userId}`);
-    console.log('Wallet cache invalidated for user:', data.userId);
-
     res.status(200).json({
       successMessage: "Wallet blocked successfully",
       wallet: wallet,
@@ -119,9 +89,6 @@ const unblockWallet = async (req, res) => {
       res.status(404).json({ errorMessage: "Wallet not found" });
       return;
     }
-
-    await redis.del(`wallet:${data.userId}`);
-    console.log('Wallet cache invalidated for user:', data.userId);
 
     res.status(200).json({
       successMessage: "Wallet unblocked successfully",
@@ -187,10 +154,6 @@ const addMoney = async (req, res) => {
         "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2",
         [amount, userId]
       );
-
-      // Invalidate cache
-      await redis.del(`wallet:${userId}`);
-      console.log('Wallet cache invalidated for user:', userId);
 
       // Create PENDING transaction
       const transactionResult = await saveTransaction({
@@ -327,9 +290,6 @@ const handleSSLCOMMERZSuccess = async (req, res) => {
           "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2",
           [transaction.amount, transaction.sender_id]
         );
-
-        await redis.del(`wallet:${transaction.sender_id}`);
-        console.log('Wallet cache invalidated for user:', transaction.sender_id);
 
         await pool.query("COMMIT");
 
@@ -513,9 +473,6 @@ const handleSSLCOMMERZIPN = async (req, res) => {
         "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2",
         [tx.amount, tx.sender_id]
       );
-
-      await redis.del(`wallet:${tx.sender_id}`);
-      console.log('Wallet cache invalidated for user:', tx.sender_id);
 
       await pool.query("COMMIT");
 

@@ -3,7 +3,6 @@ const {
   sendMoneyReceivedNotification,
   sendMoneySentNotification,
 } = require("../helpers/notificationHelper");
-const { redis } = require("../config/redis");
 const { findByPhone, findById } = require("../models/userModel");
 const { findByUserId, updateBalance } = require("../models/walletModel");
 const { saveTransaction, findByUserId: findTransactionsByUserId, formatTransactions } = require("../models/transactionModel");
@@ -129,11 +128,6 @@ const executeTransaction = async (req, res, receiverType, transactionType) => {
         transaction_type: transactionType,
         status: "completed"
       });
-
-      // Invalidate cache for both sender and receiver
-      await redis.del(`wallet:${sender.id}`);
-      await redis.del(`wallet:${receiver.id}`);
-      console.log('Wallet cache invalidated for sender and receiver');
 
       await pool.query("COMMIT");
 

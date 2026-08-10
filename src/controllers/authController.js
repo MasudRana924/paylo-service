@@ -4,7 +4,6 @@ const { findByPhone, findById, saveUser, updateOTP, verifyUser, updateFcmToken, 
 const { findByUserId, saveWallet } = require("../models/walletModel");
 const { uploadImageToCloudinary, deleteImageFromCloudinary } = require("../helpers/imageUpload");
 const { cleanupFile } = require("../middleware/fileUpload");
-const { redis } = require("../config/redis");
 
 const JWT_SECRET = "masud924";
 
@@ -81,13 +80,6 @@ const handleVerifyOTP = async (req, res) => {
 
   const wallet = await findByUserId(user.id);
 
-  // Cache user data in Redis with random TTL
-  const userRandomTTL = 3600 + Math.floor(Math.random() * 15);
-  const walletRandomTTL = 300 + Math.floor(Math.random() * 15);
-  await redis.setEx(`user:${user.id}`, userRandomTTL, JSON.stringify(user));
-  await redis.setEx(`wallet:${user.id}`, walletRandomTTL, JSON.stringify(wallet));
-  console.log(`User data cached with TTL: ${userRandomTTL}s, Wallet data cached with TTL: ${walletRandomTTL}s`);
-
   res.status(200).json({
     successMessage: "Account verified successfully",
     token,
@@ -117,13 +109,6 @@ const handleLogin = async (req, res) => {
   );
 
   const wallet = await findByUserId(user.id);
-
-  // Cache user data in Redis with random TTL
-  const userRandomTTL = 3600 + Math.floor(Math.random() * 15);
-  const walletRandomTTL = 300 + Math.floor(Math.random() * 15);
-  await redis.setEx(`user:${user.id}`, userRandomTTL, JSON.stringify(user));
-  await redis.setEx(`wallet:${user.id}`, walletRandomTTL, JSON.stringify(wallet));
-  console.log(`User data cached with TTL: ${userRandomTTL}s, Wallet data cached with TTL: ${walletRandomTTL}s`);
 
   res.status(200).json({
     successMessage: "Login successful",
