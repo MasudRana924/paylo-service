@@ -15,10 +15,10 @@ const handleFileUpload = (req, res, next) => {
     if (err) {
       console.error('Form parse error:', err);
       if (err.code === 'maxFileSize') {
-        res.end(JSON.stringify({ errorMessage: 'Image size exceeds 5MB limit' }));
+        res.status(400).json({ errorMessage: 'Image size exceeds 5MB limit' });
         return;
       }
-      res.end(JSON.stringify({ errorMessage: 'Error parsing file' }));
+      res.status(400).json({ errorMessage: 'Error parsing file' });
       return;
     }
 

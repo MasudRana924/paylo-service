@@ -1,4 +1,4 @@
-const https = require('https');
+const axios = require('axios');
 
 /**
  * Create SSLCOMMERZ payment session dynamically fetching env variables
@@ -35,49 +35,31 @@ const createPaymentSession = async (transactionId, amount, userId, userEmail, us
     value_b: 'ADD_MONEY',
   }).toString();
 
-  const options = {
-    hostname: isSandbox ? 'sandbox.sslcommerz.com' : 'securepay.sslcommerz.com',
-    port: 443,
-    path: '/gwprocess/v4/api.php',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': Buffer.byteLength(postData),
-      'Accept': 'application/json',
-    },
-  };
+  const apiUrl = isSandbox ? 'https://sandbox.sslcommerz.com' : 'https://securepay.sslcommerz.com';
+  const endpoint = '/gwprocess/v4/api.php';
 
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          if (response.status === 'SUCCESS') {
-            resolve({
-              success: true,
-              paymentUrl: response.GatewayPageURL,
-              sessionKey: response.sessionkey,
-            });
-          } else {
-            reject(new Error(response.failedreason || 'Failed to create payment session'));
-          }
-        } catch (error) {
-          reject(new Error('Failed to parse SSLCOMMERZ response'));
-        }
-      });
+  try {
+    const response = await axios.post(`${apiUrl}${endpoint}`, postData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
     });
 
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.write(postData);
-    req.end();
-  });
+    const data = response.data;
+    if (data.status === 'SUCCESS') {
+      return {
+        status: 'SUCCESS',
+        paymentUrl: data.GatewayPageURL,
+        sessionkey: data.sessionkey,
+      };
+    } else {
+      throw new Error(data.error || 'Failed to create payment session');
+    }
+  } catch (error) {
+    console.error('SSLCOMMERZ API error:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to create payment session');
+  }
 };
 
 /**
@@ -95,25 +77,14 @@ const validateTransaction = async (valId, tranId) => {
 
   const url = `https://${hostname}${path}`;
 
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      res.on('end', () => {
-        console.log('SSLCOMMERZ Validation Response:', data);
-        try {
-          const response = JSON.parse(data);
-          resolve(response);
-        } catch (error) {
-          reject(new Error(`Failed to parse SSLCOMMERZ validation response: ${data}`));
-        }
-      });
-    }).on('error', (error) => {
-      reject(error);
-    });
-  });
+  try {
+    const response = await axios.get(url);
+    console.log('SSLCOMMERZ Validation Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('SSLCOMMERZ Validation API error:', error);
+    throw new Error(error.response?.data || error.message || 'Failed to validate transaction');
+  }
 };
 
 module.exports = {

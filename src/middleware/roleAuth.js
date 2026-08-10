@@ -9,19 +9,19 @@ const requireRole = (allowedRoles) => {
       );
 
       if (user.rows.length === 0) {
-        res.end(JSON.stringify({ error: "User not found" }));
+        res.status(404).json({ error: "User not found" });
         return;
       }
 
       if (!allowedRoles.includes(user.rows[0].user_type)) {
-        res.end(JSON.stringify({ error: "Access denied. Insufficient permissions." }));
+        res.status(403).json({ error: "Access denied. Insufficient permissions." });
         return;
       }
 
       req.user.role = user.rows[0].user_type;
       next();
     } catch (error) {
-      res.end(JSON.stringify({ error: "Authorization failed" }));
+      res.status(500).json({ error: "Authorization failed" });
     }
   };
 };
@@ -34,19 +34,19 @@ const requireSuperAdmin = async (req, res, next) => {
     );
 
     if (user.rows.length === 0) {
-      res.end(JSON.stringify({ error: "User not found" }));
+      res.status(404).json({ error: "User not found" });
       return;
     }
 
     if (user.rows[0].user_type !== "SuperAdmin") {
-      res.end(JSON.stringify({ error: "Access denied. Super Admin only." }));
+      res.status(403).json({ error: "Access denied. Super Admin only." });
       return;
     }
 
     req.user.role = user.rows[0].user_type;
     next();
   } catch (error) {
-    res.end(JSON.stringify({ error: "Authorization failed" }));
+    res.status(500).json({ error: "Authorization failed" });
   }
 };
 
@@ -58,7 +58,7 @@ const requireWalletStatusPermission = async (req, res, next) => {
     );
 
     if (user.rows.length === 0) {
-      res.end(JSON.stringify({ error: "User not found" }));
+      res.status(404).json({ error: "User not found" });
       return;
     }
 
@@ -76,7 +76,7 @@ const requireWalletStatusPermission = async (req, res, next) => {
       );
 
       if (permissions.rows.length === 0 || !permissions.rows[0].can_change_wallet_status) {
-        res.end(JSON.stringify({ error: "Access denied. Admin wallet status permission revoked by Super Admin." }));
+        res.status(403).json({ error: "Access denied. Admin wallet status permission revoked by Super Admin." });
         return;
       }
 
@@ -85,9 +85,9 @@ const requireWalletStatusPermission = async (req, res, next) => {
       return;
     }
 
-    res.end(JSON.stringify({ error: "Access denied. Insufficient permissions." }));
+    res.status(403).json({ error: "Access denied. Insufficient permissions." });
   } catch (error) {
-    res.end(JSON.stringify({ error: "Authorization failed" }));
+    res.status(500).json({ error: "Authorization failed" });
   }
 };
 

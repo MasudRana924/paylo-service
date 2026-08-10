@@ -7,15 +7,13 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    res.writeHead(401);
-    res.end(JSON.stringify({ errorMessage: "Access token required" }));
+    res.status(401).json({ errorMessage: "Access token required" });
     return;
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      res.writeHead(403);
-      res.end(JSON.stringify({ errorMessage: "Invalid token" }));
+      res.status(403).json({ errorMessage: "Invalid token" });
       return;
     }
 
