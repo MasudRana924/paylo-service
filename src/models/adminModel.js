@@ -2,13 +2,31 @@ const { pool } = require("../config/db");
 const getExistingAllUsers = async (limit = 10, offset = 0) => {
     const result = await pool.query(`
         SELECT users.id,users.phone,users.name,
-        json_build_object('balance', wallets.balance) as wallet
+        json_build_object(
+        'balance', wallets.balance,
+        'status', wallets.status
+        ) as wallet
         FROM users
         INNER JOIN wallets ON users.id=wallets.user_id
         LIMIT $1 OFFSET $2
         `, [limit, offset]);
     return result.rows;
 };
+
+
+
+const userWalletStatusUpdate=async(walletId,status)=>{
+
+    const result = await pool.query(`
+        UPDATE wallets
+        SET status = $1
+        WHERE id = $2
+        RETURNING *
+    `, [status, walletId]);
+    return result.rows[0];
+
+
+}
 
 const getExistingAllUsersTransactions = async (limit = 10, offset = 0) => {
     const result = await pool.query(
@@ -52,5 +70,6 @@ const getExistingAllUsersTransactions = async (limit = 10, offset = 0) => {
 
 module.exports = {
     getExistingAllUsers,
-    getExistingAllUsersTransactions
+    getExistingAllUsersTransactions,
+    userWalletStatusUpdate
 };
