@@ -3,6 +3,7 @@ const getExistingAllUsers = async (limit = 10, offset = 0) => {
     const result = await pool.query(`
         SELECT users.id,users.phone,users.name,
         json_build_object(
+        'id', wallets.id,
         'balance', wallets.balance,
         'status', wallets.status
         ) as wallet
