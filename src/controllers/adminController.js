@@ -5,6 +5,7 @@ const { sendBulkNotification } = require("../helpers/notificationHelper");
 const { saveNotification, getAll, getPublic } = require("../models/notificationModel");
 const { findByPhone, saveUser, updateUserType, getAllFcmTokens } = require("../models/userModel");
 const { saveWallet } = require("../models/walletModel");
+const { getExistingAllUsers, getExistingAllUsersTransactions } = require("../models/adminModel");
 
 const createNotification = async (req, res) => {
   try {
@@ -190,6 +191,32 @@ const toggleAdminWalletPermission = async (req, res) => {
   }
 };
 
+const getAdminALlUsers=async(req,res)=>{
+  try{
+    const users=await getExistingAllUsers()
+    res.status(200).json({
+      successMessage: "All users retrieved successfully",
+      users: users,
+    })
+
+  }catch(error){
+
+    res.status(500).json({errorMessage:error.message})
+  }
+}
+const getAdminALlUsersTransactions=async(req,res)=>{
+  try{
+    const transactions=await getExistingAllUsersTransactions()
+    res.status(200).json({
+      successMessage: "All users transactions retrieved successfully",
+      transactions: transactions,
+    })
+
+  }catch(error){
+
+    res.status(500).json({errorMessage:error.message})
+  }
+}
 module.exports = {
   createNotification,
   getNotifications,
@@ -198,4 +225,6 @@ module.exports = {
   disableAdmin,
   listAdmins,
   toggleAdminWalletPermission,
+  getAdminALlUsers,
+  getAdminALlUsersTransactions
 };

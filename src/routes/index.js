@@ -4,7 +4,7 @@ const router = express.Router();
 const { handleSignup, handleVerifyOTP, handleLogin, handleResendOTP, saveFcmToken, updateProfileImage } = require("../controllers/authController");
 const { handleCheckReceiver, handleSendMoney, handleMerchantCheck, handleCheckAgent, handlePaymentLink, handleCashout, transactionHistory } = require("../controllers/transactionController");
 const { getBalance, freezeWallet, unfreezeWallet, blockWallet, unblockWallet, addMoney, handleSSLCOMMERZSuccess, handleSSLCOMMERZFail, handleSSLCOMMERZCancel, handleSSLCOMMERZIPN, manualProcessTransaction, manualTriggerSuccess } = require("../controllers/walletController");
-const { createNotification, getNotifications, getPublicNotifications, createAdmin, disableAdmin, listAdmins, toggleAdminWalletPermission } = require("../controllers/adminController");
+const { createNotification, getNotifications, getPublicNotifications, createAdmin, disableAdmin, listAdmins, toggleAdminWalletPermission, getAdminALlUsers, getAdminALlUsersTransactions } = require("../controllers/adminController");
 const { authenticateToken } = require("../middleware/auth");
 const { handleFileUpload } = require("../middleware/fileUpload");
 const { requireRole, requireSuperAdmin, requireWalletStatusPermission } = require("../middleware/roleAuth");
@@ -56,6 +56,8 @@ router.post('/admin/create', authenticateToken, requireSuperAdmin, createAdmin);
 router.post('/admin/disable', authenticateToken, requireSuperAdmin, disableAdmin);
 router.get('/admin/list', authenticateToken, requireSuperAdmin, listAdmins);
 router.post('/admin/permission/wallet-status', authenticateToken, requireSuperAdmin, toggleAdminWalletPermission);
+router.get('/admin/users', authenticateToken, requireSuperAdmin, getAdminALlUsers);
+router.get('/admin/users/transactions', authenticateToken, requireSuperAdmin, getAdminALlUsersTransactions);
 
 // Public routes
 router.get('/public/notifications', getPublicNotifications);

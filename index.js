@@ -1,11 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const routes = require("./src/routes");
+const cors = require('cors');
 const { connectDB } = require("./src/config/db");
 
 connectDB();
 
 const app = express();
+app.use(cors(
+  {
+    allowOrigin: '*'
+  }
+));
 
 // Middleware to parse JSON bodies
 app.use(express.json());
