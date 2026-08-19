@@ -14,8 +14,6 @@ const getExistingAllUsers = async (limit = 10, offset = 0) => {
     return result.rows;
 };
 
-
-
 const userWalletStatusUpdate=async(walletId,status)=>{
 
     const result = await pool.query(`
