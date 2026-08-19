@@ -94,6 +94,80 @@ const autoMigrate = async (pool) => {
         }
       }
     }
+
+    // Group Savings tables migration
+    const groupSavingsTable = await pool.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_name = 'group_savings'
+    `);
+    
+    if (groupSavingsTable.rows.length === 0) {
+      console.log('Creating group_savings table');
+      await pool.query(`
+        CREATE TABLE group_savings (
+          id SERIAL PRIMARY KEY,
+          creator_id INTEGER REFERENCES users(id),
+          name VARCHAR(255) NOT NULL,
+          goal_amount DECIMAL(15, 2) NOT NULL,
+          current_amount DECIMAL(15, 2) DEFAULT 0,
+          duration INTEGER NOT NULL,
+          frequency VARCHAR(20) NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly')),
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+          start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          end_date TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+
+    const groupSavingsMembersTable = await pool.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_name = 'group_savings_members'
+    `);
+    
+    if (groupSavingsMembersTable.rows.length === 0) {
+      console.log('Creating group_savings_members table');
+      await pool.query(`
+        CREATE TABLE group_savings_members (
+          id SERIAL PRIMARY KEY,
+          group_savings_id INTEGER REFERENCES group_savings(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id),
+          status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'left')),
+          contribution_amount DECIMAL(15, 2) NOT NULL,
+          joined_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(group_savings_id, user_id)
+        )
+      `);
+      
+      // Create indexes
+      await pool.query('CREATE INDEX idx_group_savings_creator ON group_savings(creator_id)');
+      await pool.query('CREATE INDEX idx_group_savings_members_user ON group_savings_members(user_id)');
+      await pool.query('CREATE INDEX idx_group_savings_members_group ON group_savings_members(group_savings_id)');
+    }
+
+    // Notifications table migration
+    const notificationsTable = await pool.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_name = 'notifications'
+    `);
+    
+    if (notificationsTable.rows.length === 0) {
+      console.log('Creating notifications table');
+      await pool.query(`
+        CREATE TABLE notifications (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255),
+          description TEXT,
+          image_url VARCHAR(500),
+          created_by INTEGER REFERENCES users(id),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+
   } catch (err) {
     console.log('Auto migration skipped (tables may not exist yet)');
   }

@@ -3,7 +3,7 @@ const express = require('express');
 const routes = require("./src/routes");
 const cors = require('cors');
 const { connectDB } = require("./src/config/db");
-const { redis } = require("./src/config/redis");
+// const { redis } = require("./src/config/redis");
 
 connectDB();
 
