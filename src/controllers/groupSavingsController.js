@@ -13,7 +13,7 @@ const {
   getAcceptedMembersCount
 } = require("../models/groupSavingsModel");
 const { findByUserId: findWalletByUserId, updateBalance } = require("../models/walletModel");
-const { findById: findUserById, getAllFcmTokens } = require("../models/userModel");
+const { findById: findUserById, findByPhone, getAllFcmTokens } = require("../models/userModel");
 const { sendBulkNotification } = require("../helpers/notificationHelper");
 
 // Create a new group savings
@@ -32,20 +32,42 @@ const createGroupSavingsHandler = async (req, res) => {
       return;
     }
 
+    // Convert phone numbers to user_ids
+    const processedMembers = [];
+    if (members && members.length > 0) {
+      for (const member of members) {
+        if (!member.phone || !member.contribution_amount) {
+          res.status(400).json({ errorMessage: "Each member must have phone and contribution_amount" });
+          return;
+        }
+
+        const user = await findByPhone(member.phone);
+        if (!user) {
+          res.status(404).json({ errorMessage: `User with phone ${member.phone} not found` });
+          return;
+        }
+
+        processedMembers.push({
+          user_id: user.id,
+          contribution_amount: member.contribution_amount
+        });
+      }
+    }
+
     const groupData = {
       creator_id,
       name,
       goal_amount,
       duration,
       frequency,
-      members: members || []
+      members: processedMembers
     };
 
     const groupSavings = await createGroupSavings(groupData);
 
     // Send notifications to all members
-    if (members && members.length > 0) {
-      const memberUserIds = members.map(m => m.user_id);
+    if (processedMembers && processedMembers.length > 0) {
+      const memberUserIds = processedMembers.map(m => m.user_id);
       const fcmTokens = [];
       
       for (const userId of memberUserIds) {
