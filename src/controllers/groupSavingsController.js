@@ -219,9 +219,54 @@ const getGroupSavingsById = async (req, res) => {
 
     const members = await getGroupMembers(id);
 
+    // Calculate percentage paid, remaining installments, and next payment date
+    const totalInstallments = groupSavings.duration;
+    const percentagePaid = groupSavings.goal_amount > 0 
+      ? ((groupSavings.current_amount / groupSavings.goal_amount) * 100).toFixed(2) 
+      : 0;
+    const remainingInstallments = totalInstallments - Math.floor((groupSavings.current_amount / groupSavings.goal_amount) * totalInstallments);
+    
+    // Calculate next payment date based on frequency
+    let nextPaymentDate = null;
+    if (groupSavings.status === 'active' && groupSavings.start_date) {
+      const startDate = new Date(groupSavings.start_date);
+      const now = new Date();
+      let daysToAdd = 0;
+      
+      if (groupSavings.frequency === 'daily') {
+        daysToAdd = 1;
+      } else if (groupSavings.frequency === 'weekly') {
+        daysToAdd = 7;
+      } else if (groupSavings.frequency === 'monthly') {
+        daysToAdd = 30;
+      }
+      
+      // Calculate how many installments have been paid based on start date
+      const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+      const installmentsPaid = Math.floor(daysSinceStart / daysToAdd);
+      const nextPaymentDays = (installmentsPaid + 1) * daysToAdd;
+      
+      nextPaymentDate = new Date(startDate);
+      nextPaymentDate.setDate(startDate.getDate() + nextPaymentDays);
+      
+      // If next payment date is in the past, calculate the next upcoming one
+      if (nextPaymentDate <= now) {
+        const additionalInstallments = Math.floor((now - nextPaymentDate) / (1000 * 60 * 60 * 24 * daysToAdd)) + 1;
+        nextPaymentDate.setDate(nextPaymentDate.getDate() + (additionalInstallments * daysToAdd));
+      }
+    }
+
+    const groupSavingsWithDetails = {
+      ...groupSavings,
+      percentage_paid: parseFloat(percentagePaid),
+      remaining_installments: Math.max(0, remainingInstallments),
+      total_installments: totalInstallments,
+      next_payment_date: nextPaymentDate ? nextPaymentDate.toISOString() : null
+    };
+
     res.status(200).json({
       successMessage: "Group savings retrieved successfully",
-      groupSavings,
+      groupSavings: groupSavingsWithDetails,
       members,
     });
   } catch (error) {
@@ -236,9 +281,56 @@ const getUserGroupSavings = async (req, res) => {
     const userId = req.user.userId;
     const groupSavings = await findByUserId(userId);
 
+    // Calculate percentage paid, remaining installments, and next payment date for each
+    const groupSavingsWithDetails = groupSavings.map(gs => {
+      const totalInstallments = gs.duration;
+      const percentagePaid = gs.goal_amount > 0 
+        ? ((gs.current_amount / gs.goal_amount) * 100).toFixed(2) 
+        : 0;
+      const remainingInstallments = totalInstallments - Math.floor((gs.current_amount / gs.goal_amount) * totalInstallments);
+      
+      // Calculate next payment date based on frequency
+      let nextPaymentDate = null;
+      if (gs.status === 'active' && gs.start_date) {
+        const startDate = new Date(gs.start_date);
+        const now = new Date();
+        let daysToAdd = 0;
+        
+        if (gs.frequency === 'daily') {
+          daysToAdd = 1;
+        } else if (gs.frequency === 'weekly') {
+          daysToAdd = 7;
+        } else if (gs.frequency === 'monthly') {
+          daysToAdd = 30;
+        }
+        
+        // Calculate how many installments have been paid based on start date
+        const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+        const installmentsPaid = Math.floor(daysSinceStart / daysToAdd);
+        const nextPaymentDays = (installmentsPaid + 1) * daysToAdd;
+        
+        nextPaymentDate = new Date(startDate);
+        nextPaymentDate.setDate(startDate.getDate() + nextPaymentDays);
+        
+        // If next payment date is in the past, calculate the next upcoming one
+        if (nextPaymentDate <= now) {
+          const additionalInstallments = Math.floor((now - nextPaymentDate) / (1000 * 60 * 60 * 24 * daysToAdd)) + 1;
+          nextPaymentDate.setDate(nextPaymentDate.getDate() + (additionalInstallments * daysToAdd));
+        }
+      }
+
+      return {
+        ...gs,
+        percentage_paid: parseFloat(percentagePaid),
+        remaining_installments: Math.max(0, remainingInstallments),
+        total_installments: totalInstallments,
+        next_payment_date: nextPaymentDate ? nextPaymentDate.toISOString() : null
+      };
+    });
+
     res.status(200).json({
       successMessage: "Group savings retrieved successfully",
-      groupSavings,
+      groupSavings: groupSavingsWithDetails,
     });
   } catch (error) {
     console.error("Get user group savings error:", error);
@@ -515,6 +607,66 @@ const getPendingDeductions = async (req, res) => {
   }
 };
 
+// Get payment schedule for a specific group savings
+const getPaymentSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const groupSavings = await findById(id);
+
+    if (!groupSavings) {
+      res.status(404).json({ errorMessage: "Group savings not found" });
+      return;
+    }
+
+    if (groupSavings.status !== 'active') {
+      res.status(400).json({ errorMessage: "Group savings is not active" });
+      return;
+    }
+
+    const startDate = new Date(groupSavings.start_date);
+    const duration = groupSavings.duration;
+    const frequency = groupSavings.frequency;
+    
+    let daysToAdd = 0;
+    if (frequency === 'daily') {
+      daysToAdd = 1;
+    } else if (frequency === 'weekly') {
+      daysToAdd = 7;
+    } else if (frequency === 'monthly') {
+      daysToAdd = 30;
+    }
+
+    const paymentSchedule = [];
+    for (let i = 1; i <= duration; i++) {
+      const paymentDate = new Date(startDate);
+      paymentDate.setDate(startDate.getDate() + (i * daysToAdd));
+      
+      const now = new Date();
+      const isPast = paymentDate < now;
+      const isToday = paymentDate.toDateString() === now.toDateString();
+      
+      paymentSchedule.push({
+        installment_number: i,
+        payment_date: paymentDate.toISOString(),
+        status: isPast ? 'paid' : (isToday ? 'due' : 'upcoming'),
+        amount: groupSavings.goal_amount / duration
+      });
+    }
+
+    res.status(200).json({
+      successMessage: "Payment schedule retrieved successfully",
+      group_savings_id: id,
+      frequency,
+      duration,
+      start_date: groupSavings.start_date,
+      payment_schedule: paymentSchedule,
+    });
+  } catch (error) {
+    console.error("Get payment schedule error:", error);
+    res.status(500).json({ errorMessage: "Error retrieving payment schedule" });
+  }
+};
+
 module.exports = {
   createGroupSavingsHandler,
   acceptInvitation,
@@ -525,5 +677,6 @@ module.exports = {
   completeGroupSavings,
   cancelGroupSavings,
   processPendingDeductions,
-  getPendingDeductions
+  getPendingDeductions,
+  getPaymentSchedule
 };
