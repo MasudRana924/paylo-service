@@ -124,31 +124,59 @@ const acceptInvitation = async (req, res) => {
       return;
     }
 
-    // Deduct balance from user's wallet
+    // Check if user has sufficient balance
     const wallet = await findWalletByUserId(userId);
     if (!wallet) {
       res.status(404).json({ errorMessage: "Wallet not found" });
       return;
     }
 
-    if (wallet.balance < member.contribution_amount) {
-      res.status(400).json({ errorMessage: "Insufficient balance" });
-      return;
-    }
+    if (wallet.balance >= member.contribution_amount) {
+      // Deduct immediately if balance is sufficient
+      await pool.query("BEGIN");
+      try {
+        await updateBalance(userId, -member.contribution_amount);
+        await updateCurrentAmount(group_savings_id, member.contribution_amount);
+        await pool.query("COMMIT");
 
-    await pool.query("BEGIN");
-    try {
-      await updateBalance(userId, -member.contribution_amount);
-      await updateCurrentAmount(group_savings_id, member.contribution_amount);
-      await pool.query("COMMIT");
+        // Send notification for successful deduction
+        const user = await findUserById(userId);
+        if (user && user.fcm_token) {
+          await sendBulkNotification(
+            [user.fcm_token],
+            "Group Savings Contribution",
+            `${member.contribution_amount} has been deducted from your wallet for "${groupSavings.name}"`,
+            {
+              type: "group_savings_deduction",
+              group_savings_id: group_savings_id.toString(),
+              amount: member.contribution_amount.toString()
+            }
+          );
+        }
+
+        res.status(200).json({
+          successMessage: "Invitation accepted and contribution deducted successfully",
+          member,
+        });
+      } catch (error) {
+        await pool.query("ROLLBACK");
+        throw error;
+      }
+    } else {
+      // Add to pending deductions if insufficient balance
+      await pool.query(
+        `INSERT INTO group_savings_pending_deductions (group_savings_id, user_id, amount, status) 
+         VALUES ($1, $2, $3, 'pending') 
+         ON CONFLICT (group_savings_id, user_id) DO UPDATE 
+         SET amount = $3, status = 'pending'`,
+        [group_savings_id, userId, member.contribution_amount]
+      );
 
       res.status(200).json({
-        successMessage: "Invitation accepted and contribution deducted successfully",
+        successMessage: "Invitation accepted. Contribution will be deducted when you have sufficient balance.",
         member,
+        pendingDeduction: true,
       });
-    } catch (error) {
-      await pool.query("ROLLBACK");
-      throw error;
     }
   } catch (error) {
     console.error("Accept invitation error:", error);
@@ -378,6 +406,115 @@ const cancelGroupSavings = async (req, res) => {
   }
 };
 
+// Process pending deductions for a user
+const processPendingDeductions = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get pending deductions for this user
+    const pendingDeductions = await pool.query(
+      `SELECT * FROM group_savings_pending_deductions 
+       WHERE user_id = $1 AND status = 'pending'`,
+      [userId]
+    );
+
+    if (pendingDeductions.rows.length === 0) {
+      res.status(200).json({
+        successMessage: "No pending deductions to process",
+        processedCount: 0,
+      });
+      return;
+    }
+
+    const wallet = await findWalletByUserId(userId);
+    if (!wallet) {
+      res.status(404).json({ errorMessage: "Wallet not found" });
+      return;
+    }
+
+    let processedCount = 0;
+    const processedDeductions = [];
+
+    for (const deduction of pendingDeductions.rows) {
+      if (wallet.balance >= deduction.amount) {
+        await pool.query("BEGIN");
+        try {
+          await updateBalance(userId, -deduction.amount);
+          await updateCurrentAmount(deduction.group_savings_id, deduction.amount);
+          
+          // Update deduction status
+          await pool.query(
+            `UPDATE group_savings_pending_deductions 
+             SET status = 'completed', processed_at = CURRENT_TIMESTAMP 
+             WHERE id = $1`,
+            [deduction.id]
+          );
+          
+          await pool.query("COMMIT");
+          
+          // Update wallet balance for next iteration
+          wallet.balance -= deduction.amount;
+          
+          processedCount++;
+          processedDeductions.push(deduction);
+
+          // Send notification for successful deduction
+          const groupSavings = await findById(deduction.group_savings_id);
+          const user = await findUserById(userId);
+          if (user && user.fcm_token && groupSavings) {
+            await sendBulkNotification(
+              [user.fcm_token],
+              "Group Savings Contribution",
+              `${deduction.amount} has been deducted from your wallet for "${groupSavings.name}"`,
+              {
+                type: "group_savings_deduction",
+                group_savings_id: deduction.group_savings_id.toString(),
+                amount: deduction.amount.toString()
+              }
+            );
+          }
+        } catch (error) {
+          await pool.query("ROLLBACK");
+          console.error(`Error processing deduction ${deduction.id}:`, error);
+        }
+      }
+    }
+
+    res.status(200).json({
+      successMessage: `Processed ${processedCount} pending deductions`,
+      processedCount,
+      processedDeductions,
+    });
+  } catch (error) {
+    console.error("Process pending deductions error:", error);
+    res.status(500).json({ errorMessage: "Error processing pending deductions" });
+  }
+};
+
+// Get pending deductions for a user
+const getPendingDeductions = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const pendingDeductions = await pool.query(
+      `SELECT gspd.*, gs.name as group_savings_name 
+       FROM group_savings_pending_deductions gspd
+       LEFT JOIN group_savings gs ON gspd.group_savings_id = gs.id
+       WHERE gspd.user_id = $1 AND gspd.status = 'pending'
+       ORDER BY gspd.created_at DESC`,
+      [userId]
+    );
+
+    res.status(200).json({
+      successMessage: "Pending deductions retrieved successfully",
+      pendingDeductions: pendingDeductions.rows,
+    });
+  } catch (error) {
+    console.error("Get pending deductions error:", error);
+    res.status(500).json({ errorMessage: "Error retrieving pending deductions" });
+  }
+};
+
 module.exports = {
   createGroupSavingsHandler,
   acceptInvitation,
@@ -386,5 +523,7 @@ module.exports = {
   getUserGroupSavings,
   getPendingInvitationsHandler,
   completeGroupSavings,
-  cancelGroupSavings
+  cancelGroupSavings,
+  processPendingDeductions,
+  getPendingDeductions
 };

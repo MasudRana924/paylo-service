@@ -5,7 +5,7 @@ const { handleSignup, handleVerifyOTP, handleLogin, handleResendOTP, saveFcmToke
 const { handleCheckReceiver, handleSendMoney, handleMerchantCheck, handleCheckAgent, handlePaymentLink, handleCashout, transactionHistory } = require("../controllers/transactionController");
 const { getBalance, freezeWallet, unfreezeWallet, blockWallet, unblockWallet, addMoney, handleSSLCOMMERZSuccess, handleSSLCOMMERZFail, handleSSLCOMMERZCancel, handleSSLCOMMERZIPN, manualProcessTransaction, manualTriggerSuccess } = require("../controllers/walletController");
 const { createNotification, getNotifications, getPublicNotifications, createAdmin, disableAdmin, listAdmins, toggleAdminWalletPermission, getAdminALlUsers, getAdminALlUsersTransactions, updateWalletStatus } = require("../controllers/adminController");
-const { createGroupSavingsHandler, acceptInvitation, rejectInvitation, getGroupSavingsById, getUserGroupSavings, getPendingInvitationsHandler, completeGroupSavings, cancelGroupSavings } = require("../controllers/groupSavingsController");
+const { createGroupSavingsHandler, acceptInvitation, rejectInvitation, getGroupSavingsById, getUserGroupSavings, getPendingInvitationsHandler, completeGroupSavings, cancelGroupSavings, processPendingDeductions, getPendingDeductions } = require("../controllers/groupSavingsController");
 const { authenticateToken } = require("../middleware/auth");
 const { handleFileUpload } = require("../middleware/fileUpload");
 const { requireRole, requireSuperAdmin, requireWalletStatusPermission } = require("../middleware/roleAuth");
@@ -71,6 +71,8 @@ router.post('/group-savings/reject', authenticateToken, rejectInvitation);
 router.get('/group-savings/:id', authenticateToken, getGroupSavingsById);
 router.get('/group-savings', authenticateToken, getUserGroupSavings);
 router.get('/group-savings/pending/invitations', authenticateToken, getPendingInvitationsHandler);
+router.get('/group-savings/pending/deductions', authenticateToken, getPendingDeductions);
+router.post('/group-savings/process-pending-deductions', authenticateToken, processPendingDeductions);
 router.post('/group-savings/:id/complete', authenticateToken, completeGroupSavings);
 router.post('/group-savings/:id/cancel', authenticateToken, cancelGroupSavings);
 

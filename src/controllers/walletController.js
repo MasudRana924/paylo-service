@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const { processPendingDeductionsForUser } = require("../helpers/pendingDeductionHelper");
 const { findByUserId, saveWallet, updateBalance, freeze, unfreeze, block, unblock } = require("../models/walletModel");
 const { saveTransaction, findById, findBySslcommerzId, updateStatus, updateBankTransactionId, updateSslcommerzDetails, findPendingByUserIdAndId } = require("../models/transactionModel");
 const { createPaymentSession, validateTransaction } = require("../helpers/sslcommerzHelper");
@@ -294,6 +295,10 @@ const handleSSLCOMMERZSuccess = async (req, res) => {
         await pool.query("COMMIT");
 
         console.log("Transaction validated and wallet credited:", tranId);
+        
+        // Process pending deductions automatically after balance update
+        await processPendingDeductionsForUser(transaction.sender_id);
+        
         redirectSuccess(tranId);
       } catch (err) {
         await pool.query("ROLLBACK");

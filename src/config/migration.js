@@ -168,6 +168,32 @@ const autoMigrate = async (pool) => {
       `);
     }
 
+    // Group Savings Pending Deductions table migration
+    const pendingDeductionsTable = await pool.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_name = 'group_savings_pending_deductions'
+    `);
+    
+    if (pendingDeductionsTable.rows.length === 0) {
+      console.log('Creating group_savings_pending_deductions table');
+      await pool.query(`
+        CREATE TABLE group_savings_pending_deductions (
+          id SERIAL PRIMARY KEY,
+          group_savings_id INTEGER REFERENCES group_savings(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id),
+          amount DECIMAL(15, 2) NOT NULL,
+          status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          processed_at TIMESTAMP,
+          UNIQUE(group_savings_id, user_id)
+        )
+      `);
+      
+      // Create indexes
+      await pool.query('CREATE INDEX idx_pending_deductions_user ON group_savings_pending_deductions(user_id)');
+      await pool.query('CREATE INDEX idx_pending_deductions_status ON group_savings_pending_deductions(status)');
+    }
+
   } catch (err) {
     console.log('Auto migration skipped (tables may not exist yet)');
   }

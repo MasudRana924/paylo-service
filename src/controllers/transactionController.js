@@ -3,6 +3,7 @@ const {
   sendMoneyReceivedNotification,
   sendMoneySentNotification,
 } = require("../helpers/notificationHelper");
+const { processPendingDeductionsForUser } = require("../helpers/pendingDeductionHelper");
 const { findByPhone, findById } = require("../models/userModel");
 const { findByUserId, updateBalance } = require("../models/walletModel");
 const { saveTransaction, findByUserId: findTransactionsByUserId, formatTransactions } = require("../models/transactionModel");
@@ -148,6 +149,9 @@ const executeTransaction = async (req, res, receiverType, transactionType) => {
       } catch (notificationError) {
         console.error("Notification error:", notificationError);
       }
+
+      // Process pending deductions for receiver after receiving money
+      await processPendingDeductionsForUser(receiver.id);
 
       res.status(200).json({
         successMessage: "Transaction successful",
